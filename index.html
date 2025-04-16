@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Flocking Simulation</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/addons/p5.dom.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #111;
+      color: #fff;
+      font-family: sans-serif;
+    }
+
+    .ui {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .ui label {
+      display: block;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="ui" id="controls"></div>
+  <script>
+    let flock = [];
+    let numBoids = 100;
+    let attractToMouse = false;
+
+    let separationSlider, alignmentSlider, cohesionSlider;
+    let boidSlider, attractCheckbox;
+
+    class Boid {
+      constructor(x, y) {
+        this.position = createVector(x || random(width), y || random(height));
+        this.velocity = p5.Vector.random2D().setMag(random(2, 4));
+        this.acceleration = createVector();
+        this.maxForce = 0.2;
+        this.maxSpeed = 4;
+        this.size = random(4, 6);
+        this.color = color(200, 22, 255, 180);
+      }
+
+      flock(boids) {
+        let alignment = this.align(boids).mult(alignmentSlider.value());
+        let cohesion = this.cohesion(boids).mult(cohesionSlider.value());
+        let separation = this.separation(boids).mult(separationSlider.value());
+
+        this.acceleration.add(alignment).add(cohesion).add(separation);
+
+        if (attractToMouse) {
+          let mouse = createVector(mouseX, mouseY);
+          let towardMouse = p5.Vector.sub(mouse, this.position).setMag(0.05);
+          this.acceleration.add(towardMouse);
+        }
+      }
+
+      align(boids) {
+        let perception = 50;
+        let steer = createVector();
+        let total = 0;
+
+        for (let other of boids) {
+          let d = dist(this.position.x, this.position.y, other.position.x, other.position.y);
+          if (other !== this && d < perception) {
+            steer.add(other.velocity);
+            total++;
+          }
+        }
+
+        if (total > 0) {
+          steer.div(total).setMag(this.maxSpeed).sub(this.velocity).limit(this.maxForce);
+        }
+
+        return steer;
+      }
+
+      cohesion(boids) {
+        let perception = 100;
+        let center = createVector();
+        let total = 0;
+
+        for (let other of boids) {
+          let d = dist(this.position.x, this.position.y, other.position.x, other.position.y);
+          if (other !== this && d < perception) {
+            center.add(other.position);
+            total++;
+          }
+        }
+
+        if (total > 0) {
+          let towardCenter = p5.Vector.sub(center.div(total), this.position);
+          towardCenter.setMag(this.maxSpeed).sub(this.velocity).limit(this.maxForce);
+          return towardCenter;
+        }
+
+        return createVector();
+      }
+
+      separation(boids) {
+        let perception = 30;
+        let steer = createVector();
+        let total = 0;
+
+        for (let other of boids) {
+          let d = dist(this.position.x, this.position.y, other.position.x, other.position.y);
+          if (other !== this && d < perception) {
+            let diff = p5.Vector.sub(this.position, other.position).div(d * d);
+            steer.add(diff);
+            total++;
+          }
+        }
+
+        if (total > 0) {
+          steer.div(total).setMag(this.maxSpeed).sub(this.velocity).limit(this.maxForce);
+        }
+
+        return steer;
+      }
+
+      update() {
+        this.velocity.add(this.acceleration).limit(this.maxSpeed);
+        this.position.add(this.velocity);
+        this.acceleration.mult(0);
+        this.edges();
+      }
+
+      edges() {
+        if (this.position.x > width) this.position.x = 0;
+        if (this.position.x < 0) this.position.x = width;
+        if (this.position.y > height) this.position.y = 0;
+        if (this.position.y < 0) this.position.y = height;
+      }
+
+      show() {
+        push();
+        translate(this.position.x, this.position.y);
+        rotate(this.velocity.heading() + PI / 2);
+        fill(this.color);
+        noStroke();
+        beginShape();
+        vertex(0, -this.size);
+        vertex(-this.size / 2, this.size);
+        vertex(this.size / 2, this.size);
+        endShape(CLOSE);
+        pop();
+      }
+    }
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      for (let i = 0; i < numBoids; i++) {
+        flock.push(new Boid());
+      }
+      setupUI();
+    }
+
+    function draw() {
+      background(20, 20, 40, 180);
+      for (let b of flock) {
+        b.flock(flock);
+        b.update();
+        b.show();
+      }
+    }
+
+    function mousePressed() {
+      for (let i = 0; i < 5; i++) {
+        flock.push(new Boid(mouseX, mouseY));
+      }
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+    }
+
+    function setupUI() {
+      const ui = select('#controls');
+
+      separationSlider = createSlider(0, 3, 1.5, 0.1);
+      alignmentSlider = createSlider(0, 3, 1.0, 0.1);
+      cohesionSlider = createSlider(0, 3, 1.0, 0.1);
+      boidSlider = createSlider(10, 300, numBoids, 1).input(updateBoidCount);
+      attractCheckbox = createCheckbox('Attract to mouse', false).changed(() => {
+        attractToMouse = attractCheckbox.checked();
+      });
+
+      ui.child(createDiv('Separation'));
+      ui.child(separationSlider);
+      ui.child(createDiv('Alignment'));
+      ui.child(alignmentSlider);
+      ui.child(createDiv('Cohesion'));
+      ui.child(cohesionSlider);
+      ui.child(createDiv('Boid Count'));
+      ui.child(boidSlider);
+      ui.child(attractCheckbox);
+
+      const resetBtn = createButton('Reset');
+      resetBtn.mousePressed(() => {
+        flock = [];
+        for (let i = 0; i < boidSlider.value(); i++) {
+          flock.push(new Boid());
+        }
+      });
+      ui.child(resetBtn);
+    }
+
+    function updateBoidCount() {
+      const target = boidSlider.value();
+      const current = flock.length;
+      const diff = target - current;
+
+      if (diff > 0) {
+        for (let i = 0; i < diff; i++) {
+          flock.push(new Boid());
+        }
+      } else if (diff < 0) {
+        flock.splice(diff);
+      }
+    }
+  </script>
+</body>
+</html>
+
