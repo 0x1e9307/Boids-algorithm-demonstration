@@ -23,7 +23,7 @@ A simple and interactive flocking simulation built using p5.js.
 
 ## 📸 Screenshot
 
-![screenshot](Boids.png)
+![screenshot](boids.png)
 
 ---
 
