@@ -1,6 +1,6 @@
 # 🌀 Flocking Simulation
 
-A simple and interactive flocking simulation built using [p5.js].
+A simple and interactive flocking simulation built using p5.js.
 
 🌐 [Live Demo](https://0x1e9307.github.io/Boids-algorithm-demonstration/)
 
